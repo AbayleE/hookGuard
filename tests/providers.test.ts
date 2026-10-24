@@ -1,4 +1,4 @@
-import { createHmac, generateKeyPairSync, sign } from "node:crypto";
+import { createHash, createHmac, generateKeyPairSync, sign } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   buildWebhookEvent,
@@ -286,22 +286,6 @@ describe("twilio", () => {
     expect(event.payload.From).toBe("+15551234567");
   });
 
-  it("appends the raw JSON body when content-type is JSON", () => {
-    const body = JSON.stringify({ MessageStatus: "delivered" });
-    const signature = hmac("sha1", SECRET, url + body, "base64");
-    const event = constructEvent(
-      "twilio",
-      body,
-      {
-        "x-twilio-signature": signature,
-        "content-type": "application/json",
-      },
-      SECRET,
-      { url }
-    );
-    expect(event.type).toBe("delivered");
-  });
-
   it("requires the full webhook URL", () => {
     expect(() =>
       constructEvent(
@@ -311,6 +295,48 @@ describe("twilio", () => {
         SECRET
       )
     ).toThrow(WebhookConfigurationError);
+  });
+
+  it("verifies JSON bodies via the bodySHA256 query parameter", () => {
+    const body = JSON.stringify({ MessageStatus: "delivered" });
+    const hash = createHash("sha256").update(body).digest("hex");
+    const signedUrl = `${url}?bodySHA256=${hash}`;
+    const signature = hmac("sha1", SECRET, signedUrl, "base64");
+    const headers = { "x-twilio-signature": signature, "content-type": "application/json" };
+
+    const event = constructEvent("twilio", body, headers, SECRET, { url: signedUrl });
+    expect(event.type).toBe("delivered");
+  });
+
+  it("rejects a JSON body that doesn't match bodySHA256", () => {
+    const body = JSON.stringify({ MessageStatus: "delivered" });
+    const hash = createHash("sha256").update(body).digest("hex");
+    const signedUrl = `${url}?bodySHA256=${hash}`;
+    const signature = hmac("sha1", SECRET, signedUrl, "base64");
+
+    expect(() =>
+      constructEvent(
+        "twilio",
+        JSON.stringify({ MessageStatus: "failed" }),
+        { "x-twilio-signature": signature, "content-type": "application/json" },
+        SECRET,
+        { url: signedUrl }
+      )
+    ).toThrow(WebhookSignatureError);
+  });
+
+  it("rejects JSON webhooks whose URL has no bodySHA256", () => {
+    const body = JSON.stringify({ MessageStatus: "delivered" });
+    const signature = hmac("sha1", SECRET, url, "base64");
+    expect(() =>
+      constructEvent(
+        "twilio",
+        body,
+        { "x-twilio-signature": signature, "content-type": "application/json" },
+        SECRET,
+        { url }
+      )
+    ).toThrow(WebhookSignatureError);
   });
 });
 
@@ -418,6 +444,53 @@ describe("discord", () => {
         { now: NOW }
       )
     ).toThrow(WebhookSignatureError);
+  });
+});
+
+describe("zoho sign", () => {
+  const body = JSON.stringify({
+    requests: { request_name: "Test Name", request_id: "123" },
+    notifications: { operation_type: "RequestSigningSuccess" },
+  });
+
+  it("validates the base64 HMAC-SHA256 of the raw body", () => {
+    const event = constructEvent(
+      "zohosign",
+      body,
+      { "X-ZS-WEBHOOK-SIGNATURE": hmac("sha256", SECRET, body, "base64") },
+      SECRET
+    );
+    expect(event.provider).toBe("zohosign");
+    expect(event.type).toBe("RequestSigningSuccess");
+  });
+
+  it("rejects a tampered body", () => {
+    const signature = hmac("sha256", SECRET, body, "base64");
+    expect(() =>
+      constructEvent(
+        "zohosign",
+        body.replace("Test Name", "Evil Name"),
+        { "x-zs-webhook-signature": signature },
+        SECRET
+      )
+    ).toThrow(WebhookSignatureError);
+  });
+
+  it("rejects requests with no signature header (HMAC not enabled in Zoho)", () => {
+    expect(() => constructEvent("zohosign", body, {}, SECRET)).toThrow(
+      MissingHeaderError
+    );
+  });
+
+  it("falls back to 'unknown' when operation_type is absent", () => {
+    const plain = JSON.stringify({ hello: "world" });
+    const event = constructEvent(
+      "zohosign",
+      plain,
+      { "x-zs-webhook-signature": hmac("sha256", SECRET, plain, "base64") },
+      SECRET
+    );
+    expect(event.type).toBe("unknown");
   });
 });
 

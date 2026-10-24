@@ -5,6 +5,7 @@ export const PROVIDERS = [
   "slack",
   "twilio",
   "zoho",
+  "zohosign",
   "hubspot",
   "clerk",
   "discord",

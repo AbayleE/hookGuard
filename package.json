@@ -1,7 +1,7 @@
 {
   "name": "hookguard",
   "version": "1.0.0",
-  "description": "Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, Slack, Twilio, Zoho, HubSpot, Clerk, and Discord.",
+  "description": "Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, Slack, Twilio, Zoho (Books, Billing & Sign), HubSpot, Clerk, and Discord.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -37,7 +37,10 @@
     "slack",
     "twilio",
     "hubspot",
-    "security"
+    "security",
+    "zoho",
+    "clerk",
+    "discord"
   ],
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -54,5 +57,8 @@
     "express": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "hookguard": "^1.1.16"
   }
 }

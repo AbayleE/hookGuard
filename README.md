@@ -59,11 +59,12 @@ const event = buildWebhookEvent(
 | GitHub | `x-hub-signature-256` or `x-hub-signature` | HMAC-SHA256 / HMAC-SHA1 | raw body (`sha256=` / `sha1=` prefix) |
 | Shopify | `x-shopify-hmac-sha256` | HMAC-SHA256 | raw body (Base64) |
 | Slack | `x-slack-signature`, `x-slack-request-timestamp` | HMAC-SHA256 | `v0:${timestamp}:${rawBody}` |
-| Zoho | `x-zoho-webhook-signature` | HMAC-SHA256 by default, configurable | raw body |
+| Zoho(Books/Billing)| `x-zoho-webhook-signature` | HMAC-SHA256 by default, configurable | raw body |
 | Twilio | `x-twilio-signature` | HMAC-SHA1 | URL + sorted form fields, or URL + JSON body |
 | HubSpot | `x-hubspot-signature-v3`, `x-hubspot-request-timestamp` | HMAC-SHA256 | `METHOD + URI + body + timestamp` |
 | Clerk | `svix-id`, `svix-timestamp`, `svix-signature` | HMAC-SHA256 | `${id}.${timestamp}.${rawBody}` |
 | Discord | `x-signature-ed25519`, `x-signature-timestamp` | Ed25519 | `timestamp + rawBody` (public key as the "secret") |
+| Zoho Sign | `x-zs-webhook-signature` | HMAC-SHA256 (Base64) | raw body |
 
 Stripe, Slack, HubSpot, Clerk, and Discord reject timestamps older (or newer) than **5 minutes** by default. Override with `{ tolerance: seconds }`.
 

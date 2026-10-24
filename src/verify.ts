@@ -1,4 +1,4 @@
-import { HookGuardError } from "./errors.js";
+import { HookGuardError, WebhookConfigurationError } from "./errors.js";
 import { getProviderStrategy } from "./providers/index.js";
 import type {
   IncomingHeaders,
@@ -37,6 +37,12 @@ export function constructEvent(
     maybeOptions
   );
 
+  if (typeof secret !== "string" || secret.length === 0) {
+    throw new WebhookConfigurationError(
+      "Webhook secret must be a non-empty string (is your env var set?)"
+    );
+  }
+
   const request = normalizeRequest(body, headers, options);
   const strategy = getProviderStrategy(provider);
   strategy.verify(request, secret, options);
@@ -60,6 +66,9 @@ export function verifyWebhook(
     constructEvent(provider, body, headers, secret, options);
     return true;
   } catch (error) {
+    if (error instanceof WebhookConfigurationError) {
+      throw error;
+    }
     if (error instanceof HookGuardError) {
       return false;
     }

@@ -46,7 +46,7 @@ export class HookGuard {
     });
   }
 
-  middleware(provider: ProviderName) {
+  middleware(provider: ProviderName, options: { callNext?: boolean } = {}) {
     return async (
       req: HttpRequestLike,
       res: HttpResponseLike,
@@ -70,7 +70,9 @@ export class HookGuard {
 
       res.status(200).json({ received: true });
       await this.dispatch(event);
-      next();
+      if (options.callNext) {
+        next();
+      }
     };
   }
 
@@ -95,7 +97,7 @@ function matches(pattern: string, eventType: string): boolean {
     return true;
   }
   if (pattern.endsWith(".*")) {
-    return eventType.startsWith(pattern.slice(0, -2));
+    return eventType.startsWith(pattern.slice(0, -1));
   }
   return false;
 }

@@ -14,6 +14,7 @@ import { parseSlackEvent, verifySlack } from "./slack.js";
 import { parseStripeEvent, verifyStripe } from "./stripe.js";
 import { parseTwilioEvent, verifyTwilio } from "./twilio.js";
 import { parseZohoEvent, verifyZoho } from "./zoho.js";
+import { parseZohoSignEvent, verifyZohoSign } from "./zohosign.js";
 
 type ProviderStrategy = {
   verify: (
@@ -34,6 +35,7 @@ const strategies: Record<ProviderName, ProviderStrategy> = {
   hubspot: { verify: verifyHubSpot, parse: parseHubSpotEvent },
   clerk: { verify: verifyClerk, parse: parseClerkEvent },
   discord: { verify: verifyDiscord, parse: parseDiscordEvent },
+  zohosign: { verify: verifyZohoSign, parse: parseZohoSignEvent },
 };
 
 export function getProviderStrategy(provider: string): ProviderStrategy {
@@ -54,6 +56,7 @@ export {
   parseStripeEvent,
   parseTwilioEvent,
   parseZohoEvent,
+  parseZohoSignEvent,
   verifyClerk,
   verifyDiscord,
   verifyGitHub,
@@ -63,4 +66,5 @@ export {
   verifyStripe,
   verifyTwilio,
   verifyZoho,
+  verifyZohoSign
 };
