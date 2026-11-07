@@ -1,6 +1,6 @@
 {
   "name": "@efrata/hookguard",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.0",
   "description": "Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, Slack, Twilio, Zoho (Billing & Sign), HubSpot, Clerk, and Discord.",
   "license": "MIT",
   "author": "Efrata Bayle",
