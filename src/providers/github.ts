@@ -1,18 +1,23 @@
-import { WebhookSignatureError } from "../errors.js";
+import { WebhookPayloadError, WebhookSignatureError } from "../errors.js";
 import type { NormalizedRequest, VerifyOptions, WebhookEvent } from "../types.js";
 import { assertSafeEqual, decodeHex, hmacDigest } from "../utils/crypto.js";
 import { getHeader, requireHeader } from "../utils/headers.js";
-import { asEventHeaders, parseJsonObject } from "../utils/request.js";
+import {
+  createEvent,
+  isFormContent,
+  parseFormBody,
+  parseJsonObject,
+} from "../utils/request.js";
 
 export function verifyGitHub(
   request: NormalizedRequest,
   secret: string,
   options: VerifyOptions
 ): void {
-  void options;
   const sha256 = getHeader(request.headers, "x-hub-signature-256");
-  if (sha256) {
-    const received = parsePrefixedSignature(sha256, "sha256", 32);
+  if (sha256 || !options.allowLegacySha1) {
+    const header = sha256 ?? requireHeader(request.headers, "x-hub-signature-256");
+    const received = parsePrefixedSignature(header, "sha256", 32);
     const expected = hmacDigest("sha256", secret, request.rawBody);
     assertSafeEqual(expected, received, "GitHub SHA-256 signature does not match");
     return;
@@ -25,19 +30,28 @@ export function verifyGitHub(
 }
 
 export function parseGitHubEvent(request: NormalizedRequest): WebhookEvent {
-  const payload = parseJsonObject(request.rawBodyText);
+  const payload = parseGitHubPayload(request);
   const eventType = getHeader(request.headers, "x-github-event") ?? "unknown";
   const action = typeof payload.action === "string" ? payload.action : "";
 
-  return {
+  return createEvent(request, {
     provider: "github",
     type: action ? `${eventType}.${action}` : eventType,
+    id: getHeader(request.headers, "x-github-delivery"),
     payload,
-    rawBody: request.rawBodyText,
-    headers: asEventHeaders(request.headers),
-    timestamp: new Date(),
-    verified: true,
-  };
+    unsignedFields: ["type", "id"],
+  });
+}
+
+function parseGitHubPayload(request: NormalizedRequest): Record<string, unknown> {
+  if (!isFormContent(request)) {
+    return parseJsonObject(request.rawBodyText);
+  }
+  const { payload } = parseFormBody(request.rawBodyText);
+  if (typeof payload !== "string") {
+    throw new WebhookPayloadError("GitHub form body is missing its payload field");
+  }
+  return parseJsonObject(payload);
 }
 
 function parsePrefixedSignature(

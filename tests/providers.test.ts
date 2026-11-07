@@ -130,18 +130,20 @@ describe("github", () => {
     expect(event.type).toBe("pull_request.opened");
   });
 
-  it("falls back to x-hub-signature (HMAC-SHA1)", () => {
+  it("accepts legacy x-hub-signature (HMAC-SHA1) only when opted in", () => {
     const pushBody = JSON.stringify({ ref: "refs/heads/main" });
     const digest = hmac("sha1", SECRET, pushBody, "hex");
-    const event = constructEvent(
-      "github",
-      pushBody,
-      {
-        "X-Hub-Signature": `sha1=${digest}`,
-        "X-GitHub-Event": "push",
-      },
-      SECRET
+    const headers = {
+      "X-Hub-Signature": `sha1=${digest}`,
+      "X-GitHub-Event": "push",
+    };
+
+    expect(() => constructEvent("github", pushBody, headers, SECRET)).toThrow(
+      MissingHeaderError
     );
+    const event = constructEvent("github", pushBody, headers, SECRET, {
+      allowLegacySha1: true,
+    });
     expect(event.type).toBe("push");
   });
 

@@ -1,11 +1,12 @@
 import { WebhookSignatureError } from "../errors.js";
 import type { NormalizedRequest, VerifyOptions, WebhookEvent } from "../types.js";
-import { assertSafeEqual, decodeHex, hmacDigest } from "../utils/crypto.js";
+import { decodeHex, hmacDigest, safeEqual } from "../utils/crypto.js";
 import { requireHeader } from "../utils/headers.js";
 import {
-  asEventHeaders,
   assertFreshTimestamp,
+  createEvent,
   parseJsonObject,
+  stringField,
 } from "../utils/request.js";
 
 export function verifyStripe(
@@ -26,7 +27,7 @@ export function verifyStripe(
 
   const matched = signatures.some((signature) => {
     try {
-      return assertSafeEqualSilent(expected, decodeHex(signature, 32));
+      return safeEqual(expected, decodeHex(signature, 32));
     } catch {
       return false;
     }
@@ -39,15 +40,12 @@ export function verifyStripe(
 
 export function parseStripeEvent(request: NormalizedRequest): WebhookEvent {
   const payload = parseJsonObject(request.rawBodyText);
-  return {
+  return createEvent(request, {
     provider: "stripe",
     type: stringField(payload, "type") ?? "unknown",
+    id: stringField(payload, "id"),
     payload,
-    rawBody: request.rawBodyText,
-    headers: asEventHeaders(request.headers),
-    timestamp: new Date(),
-    verified: true,
-  };
+  });
 }
 
 function parseStripeTimestamp(header: string): number {
@@ -76,21 +74,4 @@ function parseStripeSignatures(header: string): string[] {
     throw new WebhookSignatureError("Stripe signature header is missing v1");
   }
   return signatures;
-}
-
-function assertSafeEqualSilent(expected: Buffer, received: Buffer): boolean {
-  try {
-    assertSafeEqual(expected, received);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function stringField(
-  payload: Record<string, unknown>,
-  key: string
-): string | undefined {
-  const value = payload[key];
-  return typeof value === "string" ? value : undefined;
 }

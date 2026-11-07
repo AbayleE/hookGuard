@@ -5,8 +5,12 @@ import type {
   VerifyOptions,
   WebhookEvent,
 } from "../types.js";
-import { parseClerkEvent, verifyClerk } from "./clerk.js";
-import { parseDiscordEvent, verifyDiscord } from "./discord.js";
+import { decodeClerkSecret, parseClerkEvent, verifyClerk } from "./clerk.js";
+import {
+  assertDiscordPublicKey,
+  parseDiscordEvent,
+  verifyDiscord,
+} from "./discord.js";
 import { parseGitHubEvent, verifyGitHub } from "./github.js";
 import { parseHubSpotEvent, verifyHubSpot } from "./hubspot.js";
 import { parseShopifyEvent, verifyShopify } from "./shopify.js";
@@ -16,13 +20,15 @@ import { parseTwilioEvent, verifyTwilio } from "./twilio.js";
 import { parseZohoEvent, verifyZoho } from "./zoho.js";
 import { parseZohoSignEvent, verifyZohoSign } from "./zohosign.js";
 
-type ProviderStrategy = {
+export type ProviderStrategy = {
   verify: (
     request: NormalizedRequest,
     secret: string,
     options: VerifyOptions
   ) => void;
   parse: (request: NormalizedRequest) => WebhookEvent;
+  /** Throws WebhookConfigurationError for a secret that can never be valid. */
+  validateSecret?: (secret: string) => void;
 };
 
 const strategies: Record<ProviderName, ProviderStrategy> = {
@@ -33,38 +39,22 @@ const strategies: Record<ProviderName, ProviderStrategy> = {
   twilio: { verify: verifyTwilio, parse: parseTwilioEvent },
   zoho: { verify: verifyZoho, parse: parseZohoEvent },
   hubspot: { verify: verifyHubSpot, parse: parseHubSpotEvent },
-  clerk: { verify: verifyClerk, parse: parseClerkEvent },
-  discord: { verify: verifyDiscord, parse: parseDiscordEvent },
+  clerk: {
+    verify: verifyClerk,
+    parse: parseClerkEvent,
+    validateSecret: decodeClerkSecret,
+  },
+  discord: {
+    verify: verifyDiscord,
+    parse: parseDiscordEvent,
+    validateSecret: assertDiscordPublicKey,
+  },
   zohosign: { verify: verifyZohoSign, parse: parseZohoSignEvent },
 };
 
 export function getProviderStrategy(provider: string): ProviderStrategy {
-  const strategy = strategies[provider as ProviderName];
-  if (!strategy) {
+  if (!Object.hasOwn(strategies, provider)) {
     throw new UnsupportedProviderError(provider);
   }
-  return strategy;
+  return strategies[provider as ProviderName];
 }
-
-export {
-  parseClerkEvent,
-  parseDiscordEvent,
-  parseGitHubEvent,
-  parseHubSpotEvent,
-  parseShopifyEvent,
-  parseSlackEvent,
-  parseStripeEvent,
-  parseTwilioEvent,
-  parseZohoEvent,
-  parseZohoSignEvent,
-  verifyClerk,
-  verifyDiscord,
-  verifyGitHub,
-  verifyHubSpot,
-  verifyShopify,
-  verifySlack,
-  verifyStripe,
-  verifyTwilio,
-  verifyZoho,
-  verifyZohoSign
-};

@@ -1,7 +1,7 @@
 import type { NormalizedRequest, VerifyOptions, WebhookEvent } from "../types.js";
 import { assertSafeEqual, decodeBase64, hmacDigest } from "../utils/crypto.js";
 import { getHeader, requireHeader } from "../utils/headers.js";
-import { asEventHeaders, parseJsonObject } from "../utils/request.js";
+import { createEvent, parseJsonObject } from "../utils/request.js";
 
 export function verifyShopify(
   request: NormalizedRequest,
@@ -19,13 +19,11 @@ export function parseShopifyEvent(request: NormalizedRequest): WebhookEvent {
   const payload = parseJsonObject(request.rawBodyText);
   const topic = getHeader(request.headers, "x-shopify-topic") ?? "unknown";
 
-  return {
+  return createEvent(request, {
     provider: "shopify",
     type: topic.replaceAll("/", "."),
+    id: getHeader(request.headers, "x-shopify-webhook-id"),
     payload,
-    rawBody: request.rawBodyText,
-    headers: asEventHeaders(request.headers),
-    timestamp: new Date(),
-    verified: true,
-  };
+    unsignedFields: ["type", "id"],
+  });
 }

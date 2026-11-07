@@ -3,9 +3,13 @@ import type { NormalizedRequest, VerifyOptions, WebhookEvent } from "../types.js
 import { assertSafeEqual, decodeHex, hmacDigest } from "../utils/crypto.js";
 import { requireHeader } from "../utils/headers.js";
 import {
-  asEventHeaders,
   assertFreshTimestamp,
+  createEvent,
+  isFormContent,
+  isRecord,
+  parseFormBody,
   parseJsonObject,
+  stringField,
 } from "../utils/request.js";
 
 export function verifySlack(
@@ -38,25 +42,43 @@ export function verifySlack(
 }
 
 export function parseSlackEvent(request: NormalizedRequest): WebhookEvent {
+  return isFormContent(request)
+    ? parseSlackForm(request)
+    : parseSlackJson(request);
+}
+
+function parseSlackJson(request: NormalizedRequest): WebhookEvent {
   const payload = parseJsonObject(request.rawBodyText);
-  const nested = payload.event;
-  const nestedType =
-    nested && typeof nested === "object" && !Array.isArray(nested)
-      ? (nested as Record<string, unknown>).type
-      : undefined;
+  const nested = isRecord(payload.event)
+    ? stringField(payload.event, "type")
+    : undefined;
 
-  const type =
-    (typeof nestedType === "string" ? nestedType : undefined) ??
-    (typeof payload.type === "string" ? payload.type : undefined) ??
-    "unknown";
-
-  return {
+  return createEvent(request, {
     provider: "slack",
-    type,
+    type: nested ?? stringField(payload, "type") ?? "unknown",
+    id: stringField(payload, "event_id"),
     payload,
-    rawBody: request.rawBodyText,
-    headers: asEventHeaders(request.headers),
-    timestamp: new Date(),
-    verified: true,
-  };
+  });
+}
+
+/** Slash commands are plain form fields; interactivity nests JSON in `payload`. */
+function parseSlackForm(request: NormalizedRequest): WebhookEvent {
+  const form = parseFormBody(request.rawBodyText);
+
+  if (typeof form.payload === "string") {
+    const payload = parseJsonObject(form.payload);
+    return createEvent(request, {
+      provider: "slack",
+      type: stringField(payload, "type") ?? "unknown",
+      id: stringField(payload, "trigger_id"),
+      payload,
+    });
+  }
+
+  return createEvent(request, {
+    provider: "slack",
+    type: typeof form.command === "string" ? "slash_command" : "unknown",
+    id: stringField(form, "trigger_id"),
+    payload: form,
+  });
 }

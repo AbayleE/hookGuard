@@ -1,8 +1,17 @@
-export class HookGuardError extends Error {
-  readonly code: string;
+export type HookGuardErrorCode =
+  | "SIGNATURE_VERIFICATION_FAILED"
+  | "TIMESTAMP_OUT_OF_TOLERANCE"
+  | "MISSING_HEADER"
+  | "UNSUPPORTED_PROVIDER"
+  | "INVALID_PAYLOAD"
+  | "INVALID_CONFIGURATION"
+  | "HANDLER_TIMEOUT";
 
-  constructor(message: string, code: string) {
-    super(message);
+export class HookGuardError extends Error {
+  readonly code: HookGuardErrorCode;
+
+  constructor(message: string, code: HookGuardErrorCode, options?: ErrorOptions) {
+    super(message, options);
     this.name = this.constructor.name;
     this.code = code;
   }
@@ -39,13 +48,22 @@ export class UnsupportedProviderError extends HookGuardError {
 }
 
 export class WebhookPayloadError extends HookGuardError {
-  constructor(message = "Failed to parse webhook payload") {
-    super(message, "INVALID_PAYLOAD");
+  constructor(message = "Failed to parse webhook payload", options?: ErrorOptions) {
+    super(message, "INVALID_PAYLOAD", options);
   }
 }
 
 export class WebhookConfigurationError extends HookGuardError {
   constructor(message: string) {
     super(message, "INVALID_CONFIGURATION");
+  }
+}
+
+export class WebhookHandlerTimeoutError extends HookGuardError {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`Webhook handler did not finish within ${timeoutMs}ms`, "HANDLER_TIMEOUT");
+    this.timeoutMs = timeoutMs;
   }
 }

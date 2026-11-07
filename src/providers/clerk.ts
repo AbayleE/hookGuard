@@ -1,11 +1,12 @@
-import { WebhookSignatureError } from "../errors.js";
+import { WebhookConfigurationError, WebhookSignatureError } from "../errors.js";
 import type { NormalizedRequest, VerifyOptions, WebhookEvent } from "../types.js";
-import { assertSafeEqual, decodeBase64, hmacDigest } from "../utils/crypto.js";
-import { requireHeader } from "../utils/headers.js";
+import { decodeBase64, hmacDigest, safeEqual } from "../utils/crypto.js";
+import { getHeader, requireHeader } from "../utils/headers.js";
 import {
-  asEventHeaders,
   assertFreshTimestamp,
+  createEvent,
   parseJsonObject,
+  stringField,
 } from "../utils/request.js";
 
 export function verifyClerk(
@@ -13,6 +14,7 @@ export function verifyClerk(
   secret: string,
   options: VerifyOptions
 ): void {
+  const secretBytes = decodeClerkSecret(secret);
   const svixId = requireHeader(request.headers, "svix-id");
   const svixTimestamp = requireHeader(request.headers, "svix-timestamp");
   const svixSignature = requireHeader(request.headers, "svix-signature");
@@ -27,7 +29,6 @@ export function verifyClerk(
     Buffer.from(`${svixId}.${svixTimestamp}.`, "utf8"),
     request.rawBody,
   ]);
-  const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
   const expected = hmacDigest("sha256", secretBytes, signedContent);
 
   const matched = svixSignature.split(" ").some((part) => {
@@ -41,8 +42,7 @@ export function verifyClerk(
       return false;
     }
     try {
-      assertSafeEqual(expected, decodeBase64(value, 32));
-      return true;
+      return safeEqual(expected, decodeBase64(value, 32));
     } catch {
       return false;
     }
@@ -53,15 +53,28 @@ export function verifyClerk(
   }
 }
 
+/**
+ * Node's base64 decoder skips invalid input, so a malformed secret can decode
+ * to an empty key, which would let anyone compute a valid signature.
+ */
+export function decodeClerkSecret(secret: string): Buffer {
+  const encoded = secret.replace(/^whsec_/, "");
+  const key = Buffer.from(encoded, "base64");
+  const roundTrip = key.toString("base64").replace(/=+$/, "");
+  if (key.length === 0 || roundTrip !== encoded.replace(/=+$/, "")) {
+    throw new WebhookConfigurationError(
+      "Clerk webhook secret is not valid base64 (expected whsec_<base64>)"
+    );
+  }
+  return key;
+}
+
 export function parseClerkEvent(request: NormalizedRequest): WebhookEvent {
   const payload = parseJsonObject(request.rawBodyText);
-  return {
+  return createEvent(request, {
     provider: "clerk",
-    type: typeof payload.type === "string" ? payload.type : "unknown",
+    type: stringField(payload, "type") ?? "unknown",
+    id: getHeader(request.headers, "svix-id"),
     payload,
-    rawBody: request.rawBodyText,
-    headers: asEventHeaders(request.headers),
-    timestamp: new Date(),
-    verified: true,
-  };
+  });
 }

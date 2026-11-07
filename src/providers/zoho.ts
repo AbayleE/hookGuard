@@ -1,5 +1,6 @@
-//Zoho Books/Billing Webhook Verification
-import { WebhookSignatureError } from "../errors.js";
+// Zoho Billing webhook verification. Zoho Books shares the header but its
+// signing scheme has not been confirmed against documentation.
+import { WebhookConfigurationError, WebhookSignatureError } from "../errors.js";
 import type {
   HashAlgorithm,
   NormalizedRequest,
@@ -13,7 +14,13 @@ import {
   hmacDigest,
 } from "../utils/crypto.js";
 import { requireHeader } from "../utils/headers.js";
-import { asEventHeaders, parseJsonObject } from "../utils/request.js";
+import {
+  createEvent,
+  isFormContent,
+  parseFormBody,
+  parseJsonObject,
+  stringField,
+} from "../utils/request.js";
 
 const DIGEST_BYTES: Record<HashAlgorithm, number> = {
   sha1: 20,
@@ -28,28 +35,57 @@ export function verifyZoho(
 ): void {
   const signature = requireHeader(request.headers, "x-zoho-webhook-signature");
   const algorithm: HashAlgorithm = options.algorithm ?? "sha256";
-  const expected = hmacDigest(algorithm, secret, request.rawBody);
+  const expected = hmacDigest(algorithm, secret, signedContent(request, options));
   const received = decodeZohoSignature(signature, DIGEST_BYTES[algorithm]);
   assertSafeEqual(expected, received, "Zoho signature does not match");
 }
 
 export function parseZohoEvent(request: NormalizedRequest): WebhookEvent {
-  const payload = parseJsonObject(request.rawBodyText);
+  const payload = isFormContent(request)
+    ? parseFormBody(request.rawBodyText)
+    : parseJsonObject(request.rawBodyText);
   const type =
-    pickString(payload, "event_type") ??
-    pickString(payload, "event") ??
-    pickString(payload, "status") ??
+    stringField(payload, "event_type") ??
+    stringField(payload, "event") ??
+    stringField(payload, "status") ??
     "unknown";
 
-  return {
+  return createEvent(request, {
     provider: "zoho",
     type,
+    id: stringField(payload, "event_id"),
     payload,
-    rawBody: request.rawBodyText,
-    headers: asEventHeaders(request.headers),
-    timestamp: new Date(),
-    verified: true,
-  };
+  });
+}
+
+/**
+ * Query and form pairs sorted by key and joined as key + value, followed by the
+ * raw JSON body. With neither kind of pair, that is just the raw body.
+ */
+function signedContent(request: NormalizedRequest, options: VerifyOptions): Buffer {
+  const isForm = isFormContent(request);
+  const pairs = queryPairs(options.url ?? request.url);
+  if (isForm) {
+    pairs.push(...new URLSearchParams(request.rawBodyText));
+  }
+  pairs.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
+  const prefix = Buffer.from(
+    pairs.map(([key, value]) => key + value).join(""),
+    "utf8"
+  );
+  return isForm ? prefix : Buffer.concat([prefix, request.rawBody]);
+}
+
+function queryPairs(url: string | undefined): [string, string][] {
+  if (url === undefined) {
+    return [];
+  }
+  try {
+    return [...new URL(url).searchParams];
+  } catch {
+    throw new WebhookConfigurationError("Zoho webhook URL must be an absolute URL");
+  }
 }
 
 function decodeZohoSignature(signature: string, expectedBytes: number) {
@@ -63,12 +99,4 @@ function decodeZohoSignature(signature: string, expectedBytes: number) {
       throw new WebhookSignatureError("Zoho signature encoding is not recognized");
     }
   }
-}
-
-function pickString(
-  payload: Record<string, unknown>,
-  key: string
-): string | undefined {
-  const value = payload[key];
-  return typeof value === "string" ? value : undefined;
 }
