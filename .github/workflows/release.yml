@@ -27,9 +27,9 @@ jobs:
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -50,6 +50,18 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+      - name: Check that npm credentials are available
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "Using the NPM_TOKEN repository secret."
+          elif npm view "$name" version > /dev/null 2>&1; then
+            echo "No NPM_TOKEN secret; using trusted publishing (OIDC)."
+          else
+            echo "::error::$name is not on npm yet, so its first version needs a token, and the NPM_TOKEN secret is empty in this job. Add it under Settings > Secrets and variables > Actions > Secrets tab > Repository secrets, with the name NPM_TOKEN exactly. Environment secrets and Variables are not visible to this job."
+            exit 1
+          fi
 
       - name: Publish with NPM_TOKEN (first release)
         if: env.NPM_TOKEN != ''
