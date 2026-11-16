@@ -131,7 +131,7 @@ export interface HookGuardOptions {
    * Called for rejected requests, handler failures, and store failures.
    * When omitted, everything except rejected requests goes to console.error.
    */
-  onError?: (err: Error, event?: WebhookEvent) => void;
+  onError?: (err: Error, event?: WebhookEvent) => void | Promise<void>;
   /**
    * Fail a handler that runs longer than this. The handler is not cancelled;
    * HookGuard stops waiting for it.

@@ -158,7 +158,7 @@ guard.on("2", () => ({ body: { type: 4, data: { content: "Hello" } } }));
 | Verified, but the body cannot be parsed | 400 |
 | Configuration error | 500 |
 
-Response bodies are generic, because callers are unauthenticated. Details go to `onError`, which receives every failure. Without `onError`, everything except rejected requests goes to `console.error`.
+Response bodies are generic, because callers are unauthenticated. Details go to `onError`, which receives every failure. It may be async: a rejected promise is logged and does not change the response. Without `onError`, everything except rejected requests goes to `console.error`.
 
 ### Slow handlers
 

@@ -1,4 +1,5 @@
-// One block per finding in package-docs/publishing_readiness_audit.md.
+// One block per finding from the pre-release audit. The IDs (S1, C1, R1, D1, ...)
+// are kept so that each block can still be traced back to its finding.
 import { createHash, createHmac, generateKeyPairSync, sign } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {

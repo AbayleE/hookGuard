@@ -2,7 +2,7 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may include breaking changes.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-16)
 
 First public release.
 

@@ -1,0 +1,62 @@
+name: Release
+
+# Publishes to npm when a version tag is pushed, e.g. `git push origin v0.1.0`.
+# The tag must match the version in package.json.
+#
+# Authentication, in order of preference:
+#   1. Trusted publishing (OIDC): no secret needed. Configure it on npmjs.com
+#      under the package's Settings > Trusted publisher, with this repository
+#      and the workflow file name `release.yml`. Only works once the package
+#      already exists on npm.
+#   2. A granular access token stored as the NPM_TOKEN repository secret, with
+#      "Bypass 2FA" enabled. Needed for the very first publish. Delete the
+#      secret after switching to trusted publishing.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance and trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships an older npm.
+      - run: npm install -g npm@latest
+      - run: npm --version
+
+      - name: Check that the tag matches package.json
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version ($expected)"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Publish with NPM_TOKEN (first release)
+        if: env.NPM_TOKEN != ''
+        run: |
+          npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm publish --provenance --access public
+
+      - name: Publish with trusted publishing (OIDC)
+        if: env.NPM_TOKEN == ''
+        run: npm publish --provenance --access public
