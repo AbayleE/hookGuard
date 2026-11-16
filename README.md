@@ -15,7 +15,7 @@ Webhooks are inbound HTTP callbacks. Anyone who can reach your URL can POST a fa
 ## Install
 
 ```bash
-npm install @efrata/hookguard
+npm install @abayle/hookguard
 ```
 
 Requires Node.js 20 or later. Works with both `import` and `require`. No runtime dependencies.
@@ -26,7 +26,7 @@ Signatures cover the exact bytes received, so you must pass the **raw body**. A 
 
 ```ts
 import express from "express";
-import { HookGuard } from "@efrata/hookguard";
+import { HookGuard } from "@abayle/hookguard";
 
 const guard = new HookGuard({
   providers: {
@@ -56,7 +56,7 @@ Use `type: "*/*"`. With a narrower type, a request sent with a different `Conten
 `constructEvent` works in any framework. It accepts a `Buffer`, string, `Uint8Array`, or `ArrayBuffer` body, and a plain headers object or a Fetch `Headers`.
 
 ```ts
-import { constructEvent, HookGuardError } from "@efrata/hookguard";
+import { constructEvent, HookGuardError } from "@abayle/hookguard";
 
 // For example, a Next.js route handler
 export async function POST(request: Request) {
@@ -190,7 +190,7 @@ Handlers run one at a time, in the order they were registered.
 With `callNext`, HookGuard verifies the request, runs handlers, sets `req.webhookEvent`, and calls `next()`. Failures after verification go to `next(err)`. Failed verification is still rejected directly.
 
 ```ts
-import type { HttpRequestLike } from "@efrata/hookguard";
+import type { HttpRequestLike } from "@abayle/hookguard";
 
 app.post(
   "/webhooks/github",
